@@ -1,6 +1,5 @@
-import React from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
-import { Package, Archive } from 'lucide-react';
+import { Package, Settings, ScanBarcode, History as LucideHistory } from 'lucide-react';
 
 const Layout = () => {
     return (
@@ -20,7 +19,17 @@ const Layout = () => {
                             }
                         >
                             <Package size={20} />
-                            <span>Input Data Awal</span>
+                            <span>Data Cargo</span>
+                        </NavLink>
+                        <NavLink
+                            to="/screening"
+                            className={({ isActive }) =>
+                                `flex items-center space-x-3 px-4 py-3 rounded-md transition-colors ${isActive ? 'bg-blue-800' : 'hover:bg-blue-800/50'
+                                }`
+                            }
+                        >
+                            <ScanBarcode size={20} />
+                            <span>Screening</span>
                         </NavLink>
                         <NavLink
                             to="/repository"
@@ -29,8 +38,18 @@ const Layout = () => {
                                 }`
                             }
                         >
-                            <Archive size={20} />
-                            <span>Repository Cargo</span>
+                            <LucideHistory size={20} />
+                            <span>Scan History</span>
+                        </NavLink>
+                        <NavLink
+                            to="/settings"
+                            className={({ isActive }) =>
+                                `flex items-center space-x-3 px-4 py-3 rounded-md transition-colors ${isActive ? 'bg-blue-800' : 'hover:bg-blue-800/50'
+                                }`
+                            }
+                        >
+                            <Settings size={20} />
+                            <span>Settings</span>
                         </NavLink>
                     </nav>
                 </div>
