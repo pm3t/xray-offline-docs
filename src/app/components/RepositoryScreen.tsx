@@ -1,17 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Eye, CheckCircle, XCircle, Package, Clock, ImageIcon, Trash2, Send, RotateCcw } from 'lucide-react';
+import { Search, Eye, CheckCircle, XCircle, Package, Clock, ImageIcon, Trash2, Send, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { scanDB } from '../../db/db';
 import type { ScanHistoryItem } from '../../db/db';
+import { ImageZoomModal } from './ui/ImageZoomModal';
 
 const RepositoryScreen = () => {
     const [history, setHistory] = useState<ScanHistoryItem[]>([]);
+
+    const [currentPage, setCurrentPage] = useState(1);
+    const [recordsPerPage, setRecordsPerPage] = useState('10');
+
+    useEffect(() => {
+        const savedSettings = localStorage.getItem('apiSettings');
+        if (savedSettings) {
+            try {
+                const parsed = JSON.parse(savedSettings);
+                if (parsed.recordsPerPage) {
+                    setRecordsPerPage(String(parsed.recordsPerPage));
+                }
+            } catch (e) { }
+        }
+    }, []);
+
     const [filteredList, setFilteredList] = useState<ScanHistoryItem[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('Semua Status');
     const [selectedScanIds, setSelectedScanIds] = useState<number[]>([]);
     const [selectedScan, setSelectedScan] = useState<ScanHistoryItem | null>(null);
+    const [zoomImage, setZoomImage] = useState<string | null>(null);
     const navigate = useNavigate();
 
     const loadHistory = async () => {
@@ -44,12 +62,13 @@ const RepositoryScreen = () => {
         }
 
         setFilteredList(result);
-        setSelectedScanIds([]); // Reset selection on filter change
+        setSelectedScanIds([]);
+        setCurrentPage(1); // Reset selection on filter change
     }, [searchTerm, statusFilter, history]);
 
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.checked) {
-            setSelectedScanIds(filteredList.map(h => h.scanId));
+            setSelectedScanIds(paginatedList.map(h => h.scanId));
         } else {
             setSelectedScanIds([]);
         }
@@ -143,11 +162,11 @@ Data yang akan dikirim:
 
         let statusEl;
         switch (status) {
-            case 'Release':
-                statusEl = <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-300"><CheckCircle size={12} className="mr-1" /> Release</span>;
+            case 'Finished XRay':
+                statusEl = <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-300"><CheckCircle size={12} className="mr-1" /> Finished XRay</span>;
                 break;
-            case 'Reject':
-                statusEl = <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-300"><XCircle size={12} className="mr-1" /> Reject</span>;
+            case 'Pending XRay':
+                statusEl = <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-300"><XCircle size={12} className="mr-1" /> Pending XRay</span>;
                 break;
             default:
                 statusEl = <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-300">{status}</span>;
@@ -167,10 +186,13 @@ Data yang akan dikirim:
 
     const stats = {
         total: history.length,
-        released: history.filter(h => h.status === 'Release').length,
-        rejected: history.filter(h => h.status === 'Reject').length,
+        released: history.filter(h => h.status === 'Finished XRay').length,
+        rejected: history.filter(h => h.status === 'Pending XRay').length,
         submittedToCustoms: history.filter(h => h.submittedToCustoms).length
     };
+
+    const totalPages = recordsPerPage === 'All' ? 1 : Math.ceil(filteredList.length / (recordsPerPage as unknown as number));
+    const paginatedList = recordsPerPage === 'All' ? filteredList : filteredList.slice((currentPage - 1) * (recordsPerPage as unknown as number), currentPage * (recordsPerPage as unknown as number));
 
     return (
         <div className="p-6">
@@ -202,11 +224,11 @@ Data yang akan dikirim:
                     <p className="text-2xl font-black text-gray-900 mt-1">{stats.total}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <h3 className="text-gray-500 text-[10px] font-bold uppercase tracking-wider text-green-600">Total Released</h3>
+                    <h3 className="text-gray-500 text-[10px] font-bold uppercase tracking-wider text-green-600">Total Finished XRay</h3>
                     <p className="text-2xl font-black text-green-600 mt-1">{stats.released}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <h3 className="text-gray-500 text-[10px] font-bold uppercase tracking-wider text-red-600">Total Rejected</h3>
+                    <h3 className="text-gray-500 text-[10px] font-bold uppercase tracking-wider text-red-600">Total Pending XRay</h3>
                     <p className="text-2xl font-black text-red-600 mt-1">{stats.rejected}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
@@ -232,8 +254,8 @@ Data yang akan dikirim:
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium"
                     >
                         <option>Semua Status</option>
-                        <option value="Release">Release</option>
-                        <option value="Reject">Reject</option>
+                        <option value="Finished XRay">Finished XRay</option>
+                        <option value="Pending XRay">Pending XRay</option>
                     </select>
                 </div>
             </div>
@@ -248,7 +270,7 @@ Data yang akan dikirim:
                                         type="checkbox"
                                         className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                         onChange={handleSelectAll}
-                                        checked={selectedScanIds.length === filteredList.length && filteredList.length > 0}
+                                        checked={selectedScanIds.length === paginatedList.length && paginatedList.length > 0}
                                     />
                                 </th>
                                 <th className="px-4 py-4 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest">Scan ID</th>
@@ -271,7 +293,7 @@ Data yang akan dikirim:
                                     </td>
                                 </tr>
                             ) : (
-                                filteredList.map((item) => (
+                                paginatedList.map((item) => (
                                     <tr key={item.scanId} className={`hover:bg-gray-50 transition-colors group border-l-4 border-l-transparent hover:border-l-blue-500 ${selectedScanIds.includes(item.scanId) ? 'bg-blue-50/50' : ''}`}>
                                         <td className="px-4 py-4">
                                             <input
@@ -316,9 +338,31 @@ Data yang akan dikirim:
                                 ))
                             )}
                         </tbody>
-                    </table>
-                </div>
-            </div>
+                    </table></div>
+                {/* Pagination */}
+                {recordsPerPage !== 'All' && totalPages > 1 && (
+                    <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-slate-200">
+                        <div className="flex items-center text-sm text-slate-500">
+                            Page {currentPage} of {totalPages} (Total {filteredList.length} records)
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                <ChevronLeft size={18} />
+                            </button>
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                <ChevronRight size={18} />
+                            </button>
+                        </div>
+                    </div>
+                )}</div>
 
             {/* Modal Detail Scan */}
             {selectedScan && (
@@ -356,7 +400,7 @@ Data yang akan dikirim:
                                         <ImageIcon size={14} className="mr-2" /> Top View X-Ray
                                     </h3>
                                     <div className="bg-gray-900 aspect-[4/3] rounded-xl overflow-hidden border-4 border-gray-800 shadow-inner">
-                                        {selectedScan.topViewImage ? <img src={selectedScan.topViewImage} className="w-full h-full object-contain" alt="Top View" /> : <div className="w-full h-full flex items-center justify-center text-gray-600 text-xs uppercase font-bold">No Image</div>}
+                                        {selectedScan.topViewImage ? <img src={selectedScan.topViewImage} className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity" alt="Top View" onClick={() => setZoomImage(selectedScan.topViewImage!)} /> : <div className="w-full h-full flex items-center justify-center text-gray-600 text-xs uppercase font-bold">No Image</div>}
                                     </div>
                                 </div>
 
@@ -365,7 +409,7 @@ Data yang akan dikirim:
                                         <ImageIcon size={14} className="mr-2" /> Side View X-Ray
                                     </h3>
                                     <div className="bg-gray-900 aspect-[4/3] rounded-xl overflow-hidden border-4 border-gray-800 shadow-inner">
-                                        {selectedScan.sideViewImage ? <img src={selectedScan.sideViewImage} className="w-full h-full object-contain" alt="Side View" /> : <div className="w-full h-full flex items-center justify-center text-gray-600 text-xs uppercase font-bold">No Image</div>}
+                                        {selectedScan.sideViewImage ? <img src={selectedScan.sideViewImage} className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity" alt="Side View" onClick={() => setZoomImage(selectedScan.sideViewImage!)} /> : <div className="w-full h-full flex items-center justify-center text-gray-600 text-xs uppercase font-bold">No Image</div>}
                                     </div>
                                 </div>
 
@@ -374,7 +418,7 @@ Data yang akan dikirim:
                                         <ImageIcon size={14} className="mr-2" /> Foto Barang
                                     </h3>
                                     <div className="bg-gray-200 aspect-[4/3] rounded-xl overflow-hidden border-4 border-gray-100 shadow-inner flex items-center justify-center">
-                                        {selectedScan.fotoBarang ? <img src={selectedScan.fotoBarang} className="w-full h-full object-contain" alt="Foto Barang" /> : <div className="text-gray-400 text-xs text-center p-4 italic font-medium">No Photo Uploaded</div>}
+                                        {selectedScan.fotoBarang ? <img src={selectedScan.fotoBarang} className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity" alt="Foto Barang" onClick={() => setZoomImage(selectedScan.fotoBarang!)} /> : <div className="text-gray-400 text-xs text-center p-4 italic font-medium">No Photo Uploaded</div>}
                                     </div>
                                 </div>
                             </div>
@@ -387,6 +431,12 @@ Data yang akan dikirim:
                     </div>
                 </div>
             )}
+
+            <ImageZoomModal
+                isOpen={!!zoomImage}
+                onClose={() => setZoomImage(null)}
+                imageUrl={zoomImage || ''}
+            />
         </div>
     );
 };

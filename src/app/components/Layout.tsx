@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom';
-import { Package, Settings, ScanBarcode, History as LucideHistory } from 'lucide-react';
+import { Package, Settings, ScanBarcode, History as LucideHistory, Shield } from 'lucide-react';
 
 const Layout = () => {
     return (
@@ -40,6 +40,16 @@ const Layout = () => {
                         >
                             <LucideHistory size={20} />
                             <span>Scan History</span>
+                        </NavLink>
+                        <NavLink
+                            to="/customs"
+                            className={({ isActive }) =>
+                                `flex items-center space-x-3 px-4 py-3 rounded-md transition-colors ${isActive ? 'bg-blue-800' : 'hover:bg-blue-800/50'
+                                }`
+                            }
+                        >
+                            <Shield size={20} />
+                            <span>Customs Dashboard</span>
                         </NavLink>
                         <NavLink
                             to="/settings"
