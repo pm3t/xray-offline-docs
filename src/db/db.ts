@@ -17,6 +17,8 @@ export interface ScanHistoryItem {
     timestamp: string;
     submittedToCustoms?: boolean;
     submittedAt?: string;
+    userID?: string;
+    cropImages?: string[];
 }
 
 export const scanDB = {
@@ -143,3 +145,53 @@ export async function uploadFileImage(file: File, prefix: string): Promise<strin
     const data = await res.json();
     return data.url;
 }
+
+export const userAPI = {
+    async login(credentials: any): Promise<any> {
+        const res = await fetch(`${API}/api/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(credentials),
+        });
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || 'Login failed');
+        }
+        return res.json();
+    },
+
+    async getAll(): Promise<any[]> {
+        const res = await fetch(`${API}/api/users`);
+        if (!res.ok) throw new Error('Failed to fetch users');
+        return res.json();
+    },
+
+    async add(user: any): Promise<void> {
+        const res = await fetch(`${API}/api/users`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(user),
+        });
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || 'Failed to add user');
+        }
+    },
+
+    async update(id: string, user: any): Promise<void> {
+        const res = await fetch(`${API}/api/users/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(user),
+        });
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || 'Failed to update user');
+        }
+    },
+
+    async delete(id: string): Promise<void> {
+        const res = await fetch(`${API}/api/users/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to delete user');
+    },
+};

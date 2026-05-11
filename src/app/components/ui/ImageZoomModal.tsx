@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, ZoomIn, ZoomOut, RefreshCcw } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, RefreshCcw, Download } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface ImageZoomModalProps {
     isOpen: boolean;
@@ -27,6 +28,23 @@ export const ImageZoomModal: React.FC<ImageZoomModalProps> = ({ isOpen, onClose,
     const handleReset = () => {
         setScale(1);
         setPosition({ x: 0, y: 0 });
+    };
+
+    const handleDownload = () => {
+        try {
+            const link = document.createElement('a');
+            link.href = imageUrl;
+            // Generate a filename based on timestamp
+            const timestamp = new Date().getTime();
+            link.download = `xray_image_${timestamp}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            toast.success('Gambar berhasil didownload');
+        } catch (error) {
+            console.error('Failed to download image:', error);
+            toast.error('Gagal mendownload gambar');
+        }
     };
 
     const handleMouseDown = (e: React.MouseEvent) => {
@@ -84,6 +102,13 @@ export const ImageZoomModal: React.FC<ImageZoomModalProps> = ({ isOpen, onClose,
                     title="Reset"
                 >
                     <RefreshCcw size={24} />
+                </button>
+                <button
+                    className="p-2 bg-blue-600 rounded-full text-white hover:bg-blue-700 shadow-lg transition-colors"
+                    onClick={handleDownload}
+                    title="Download Image"
+                >
+                    <Download size={24} />
                 </button>
                 <button
                     className="p-2 bg-red-500 rounded-full text-white hover:bg-red-600 shadow-lg transition-colors"

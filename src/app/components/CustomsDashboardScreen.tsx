@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShieldAlert, CheckCircle, XCircle, Search, Calendar, AlertTriangle, Eye, ScanBarcode, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ShieldAlert, CheckCircle, XCircle, Search, Calendar, AlertTriangle, Eye, ScanBarcode, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
 import { scanDB } from '../../db/db';
 import { ImageZoomModal } from './ui/ImageZoomModal';
 
@@ -14,6 +14,7 @@ interface ScanHistoryItem {
     topViewImage?: string;
     sideViewImage?: string;
     fotoBarang?: string;
+    cropImages?: string[];
 }
 
 const CustomsDashboardScreen = () => {
@@ -284,6 +285,29 @@ const CustomsDashboardScreen = () => {
                                         </div>
                                     )}
                                 </div>
+
+                                {/* AI Crop Images Section */}
+                                {selectedItem.cropImages && selectedItem.cropImages.length > 0 && (
+                                    <div className="mt-4 pt-4 border-t border-slate-700">
+                                        <p className="text-xs text-slate-400 uppercase tracking-wider mb-3 flex items-center">
+                                            <Layers size={14} className="mr-2" />
+                                            AI Autocrop ({selectedItem.cropImages.length} Koli)
+                                        </p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {selectedItem.cropImages.map((url, i) => (
+                                                <div key={url} className="bg-black rounded-lg overflow-hidden border border-slate-700 relative aspect-square">
+                                                    <span className="absolute top-1 left-1 bg-black/80 text-[9px] px-1.5 py-0.5 rounded text-white font-bold z-10">#{i + 1}</span>
+                                                    <img
+                                                        src={url}
+                                                        alt={`Koli ${i + 1}`}
+                                                        className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                                                        onClick={() => setZoomImage(url)}
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="pt-4 border-t border-slate-700">
                                     <button className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold tracking-wide transition-colors">
                                         Tandai Untuk Pemeriksaan Fisik (NHI)

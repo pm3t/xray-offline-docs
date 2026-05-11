@@ -1,7 +1,27 @@
+import { useState, useEffect } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
-import { Package, Settings, ScanBarcode, History as LucideHistory, Shield } from 'lucide-react';
+import { Package, Settings, ScanBarcode, History as LucideHistory, Shield, Users, LogOut } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { settingsAPI } from '../../db/db';
 
-const Layout = () => {
+const Layout: React.FC = () => {
+    const { user, logout, isAdmin } = useAuth();
+    const [appRole, setAppRole] = useState('Workstation');
+
+    useEffect(() => {
+        settingsAPI.getAll().then(s => {
+            if (s.appRole) setAppRole(s.appRole);
+        }).catch(() => {
+            const saved = localStorage.getItem('apiSettings');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.appRole) setAppRole(parsed.appRole);
+                } catch (_) {}
+            }
+        });
+    }, []);
+
     return (
         <div className="flex h-screen w-full overflow-hidden">
             {/* Sidebar */}
@@ -21,16 +41,18 @@ const Layout = () => {
                             <Package size={20} />
                             <span>Data Cargo</span>
                         </NavLink>
-                        <NavLink
-                            to="/screening"
-                            className={({ isActive }) =>
-                                `flex items-center space-x-3 px-4 py-3 rounded-md transition-colors ${isActive ? 'bg-blue-800' : 'hover:bg-blue-800/50'
-                                }`
-                            }
-                        >
-                            <ScanBarcode size={20} />
-                            <span>Screening</span>
-                        </NavLink>
+                        {appRole !== 'Hub' && appRole !== 'Cloud' && (
+                            <NavLink
+                                to="/screening"
+                                className={({ isActive }) =>
+                                    `flex items-center space-x-3 px-4 py-3 rounded-md transition-colors ${isActive ? 'bg-blue-800' : 'hover:bg-blue-800/50'
+                                    }`
+                                }
+                            >
+                                <ScanBarcode size={20} />
+                                <span>Screening</span>
+                            </NavLink>
+                        )}
                         <NavLink
                             to="/repository"
                             className={({ isActive }) =>
@@ -61,20 +83,39 @@ const Layout = () => {
                             <Settings size={20} />
                             <span>Settings</span>
                         </NavLink>
+                        {isAdmin && (
+                            <NavLink
+                                to="/users"
+                                className={({ isActive }) =>
+                                    `flex items-center space-x-3 px-4 py-3 rounded-md transition-colors ${isActive ? 'bg-blue-800' : 'hover:bg-blue-800/50'
+                                    }`
+                                }
+                            >
+                                <Users size={20} />
+                                <span>Users</span>
+                            </NavLink>
+                        )}
                     </nav>
                 </div>
 
                 {/* User Info */}
-                <div className="p-4 border-t border-blue-800">
+                <div className="p-4 border-t border-blue-800 space-y-3">
                     <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-full bg-blue-700 flex items-center justify-center font-semibold text-lg">
-                            UD
+                        <div className="w-10 h-10 rounded-full bg-blue-700 flex items-center justify-center font-semibold text-lg uppercase">
+                            {user?.name?.charAt(0) || 'U'}
                         </div>
-                        <div>
-                            <p className="font-medium text-sm">User Demo</p>
-                            <p className="text-xs text-blue-300">CGK Station</p>
+                        <div className="flex-1 overflow-hidden">
+                            <p className="font-medium text-sm truncate">{user?.name || 'User'}</p>
+                            <p className="text-xs text-blue-300 truncate">{user?.warehouseName || 'General Station'}</p>
                         </div>
                     </div>
+                    <button
+                        onClick={logout}
+                        className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-800/50 hover:bg-red-600/20 hover:text-red-300 rounded-md transition-all text-sm font-medium border border-blue-700/50"
+                    >
+                        <LogOut size={16} />
+                        <span>Sign Out</span>
+                    </button>
                 </div>
             </aside>
 

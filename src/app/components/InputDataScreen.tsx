@@ -30,7 +30,7 @@ const InputDataScreen = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [recordsPerPage, setRecordsPerPage] = useState('10');
-    const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
+    const [scanStatusFilter, setScanStatusFilter] = useState('All');
 
     useEffect(() => {
         settingsAPI.getAll().then(s => {
@@ -43,8 +43,8 @@ const InputDataScreen = () => {
     }, []);
 
     const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({
-        uldNo: 150, mawb: 180, hawb: 150, totalPcs: 100, totalWeight: 120,
-        goodsDescription: 250, actualPcs: 100, releasedPcs: 100, rejectedPcs: 100,
+        uldNo: 120, mawb: 140, hawb: 120, totalPcs: 80, totalWeight: 100,
+        goodsDescription: 200, actualPcs: 80, releasedPcs: 80, rejectedPcs: 80,
     });
     const [visibleColumns, setVisibleColumns] = useState({
         uldNo: true, totalWeight: true, goodsDescription: true,
@@ -126,6 +126,7 @@ const InputDataScreen = () => {
 
     const totalMAWB = new Set(cargoList.map(c => c.mawb)).size;
     const incomingIncompleteScan = cargoList.filter(c => c.totalPcs > getCalculatedPcs(c.mawb, c.hawb).actual).length;
+    const completeScanCount = cargoList.filter(c => c.totalPcs <= getCalculatedPcs(c.mawb, c.hawb).actual).length;
     const totalHAWB = new Set(cargoList.map(c => c.hawb)).size;
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -231,8 +232,15 @@ const InputDataScreen = () => {
         const matchesSearch = c.mawb.toLowerCase().includes(searchTerm.toLowerCase()) ||
             c.uldNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
             c.hawb.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesIncomplete = showIncompleteOnly ? c.totalPcs > getCalculatedPcs(c.mawb, c.hawb).actual : true;
-        return matchesSearch && matchesIncomplete;
+
+        let matchesStatus = true;
+        if (scanStatusFilter === 'Incomplete') {
+            matchesStatus = c.totalPcs > getCalculatedPcs(c.mawb, c.hawb).actual;
+        } else if (scanStatusFilter === 'Complete') {
+            matchesStatus = c.totalPcs <= getCalculatedPcs(c.mawb, c.hawb).actual;
+        }
+
+        return matchesSearch && matchesStatus;
     });
 
     const totalPages = recordsPerPage === 'All' ? 1 : Math.ceil(baseFilteredList.length / (recordsPerPage as unknown as number));
@@ -243,7 +251,7 @@ const InputDataScreen = () => {
         <>
             <div className="p-6 max-w-[1400px] mx-auto print:hidden">
                 {/* Dashboard */}
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-4 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                     <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center space-x-4">
                         <div className="p-3 bg-blue-50 text-blue-600 rounded-lg"><FileSpreadsheet size={24} /></div>
                         <div><p className="text-sm text-gray-500 font-medium">Total MAWB</p><p className="text-2xl font-bold text-gray-900">{totalMAWB}</p></div>
@@ -255,6 +263,10 @@ const InputDataScreen = () => {
                     <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center space-x-4">
                         <div className="p-3 bg-red-50 text-red-600 rounded-lg"><AlertCircle size={24} /></div>
                         <div><p className="text-sm text-gray-500 font-medium">Incomplete Scan</p><p className="text-2xl font-bold text-gray-900">{incomingIncompleteScan}</p></div>
+                    </div>
+                    <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center space-x-4">
+                        <div className="p-3 bg-green-50 text-green-600 rounded-lg"><Check size={24} /></div>
+                        <div><p className="text-sm text-gray-500 font-medium">Complete Scan</p><p className="text-2xl font-bold text-gray-900">{completeScanCount}</p></div>
                     </div>
                 </div>
 
@@ -307,10 +319,20 @@ const InputDataScreen = () => {
                         <input type="text" placeholder="Search by MAWB, ULD, or HAWB..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
                     </div>
                     <div className="flex items-center space-x-4">
-                        <label className="flex items-center space-x-2 cursor-pointer text-sm font-medium text-gray-700 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
-                            <input type="checkbox" checked={showIncompleteOnly} onChange={(e) => { setShowIncompleteOnly(e.target.checked); setCurrentPage(1); }} className="rounded text-red-600 focus:ring-red-500 border-gray-300" />
-                            <span>Show Incomplete Only</span>
-                        </label>
+                        <div className="flex items-center bg-gray-50 p-1 rounded-lg border border-gray-200">
+                            <label className={`cursor-pointer px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${scanStatusFilter === 'All' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
+                                <input type="radio" name="scanStatus" value="All" checked={scanStatusFilter === 'All'} onChange={(e) => { setScanStatusFilter(e.target.value); setCurrentPage(1); }} className="hidden" />
+                                Show All
+                            </label>
+                            <label className={`cursor-pointer px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${scanStatusFilter === 'Incomplete' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
+                                <input type="radio" name="scanStatus" value="Incomplete" checked={scanStatusFilter === 'Incomplete'} onChange={(e) => { setScanStatusFilter(e.target.value); setCurrentPage(1); }} className="hidden" />
+                                Incomplete Only
+                            </label>
+                            <label className={`cursor-pointer px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${scanStatusFilter === 'Complete' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
+                                <input type="radio" name="scanStatus" value="Complete" checked={scanStatusFilter === 'Complete'} onChange={(e) => { setScanStatusFilter(e.target.value); setCurrentPage(1); }} className="hidden" />
+                                Complete Only
+                            </label>
+                        </div>
                         <div className="text-sm text-gray-500 flex flex-col items-end">
                             <span className="font-bold">Showing {paginatedList.length} of {baseFilteredList.length} filtered items</span>
                             <span className="text-xs text-gray-400">Total data: {cargoList.length} records</span>
@@ -320,11 +342,8 @@ const InputDataScreen = () => {
 
                 {/* Table Container */}
                 <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden flex flex-col">
-                    <div className="overflow-x-auto h-4 border-b border-gray-100 bg-gray-50/50" onScroll={(e) => { const t = document.getElementById('cargo-table-container'); if (t) t.scrollLeft = (e.target as HTMLDivElement).scrollLeft; }}>
-                        <div style={{ width: '1500px', height: '1px' }}></div>
-                    </div>
-                    <div id="cargo-table-container" className="overflow-x-auto" onScroll={(e) => { const t = e.currentTarget.previousElementSibling as HTMLDivElement; if (t) t.scrollLeft = e.currentTarget.scrollLeft; }}>
-                        <table className="w-full text-left border-collapse min-w-[1500px]">
+                    <div id="cargo-table-container" className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-gray-50 border-b border-gray-200">
                                     <th className="px-4 py-4 w-10">

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Eye, CheckCircle, XCircle, Package, Clock, ImageIcon, Trash2, Send, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Eye, CheckCircle, XCircle, Package, Clock, ImageIcon, Trash2, Send, RotateCcw, ChevronLeft, ChevronRight, FileSpreadsheet, Layers } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { scanDB } from '../../db/db';
@@ -25,7 +26,11 @@ const RepositoryScreen = () => {
     }, []);
 
     const [filteredList, setFilteredList] = useState<ScanHistoryItem[]>([]);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [filterMawb, setFilterMawb] = useState('');
+    const [filterHawb, setFilterHawb] = useState('');
+    const [filterScreener, setFilterScreener] = useState('');
+    const [filterStartDate, setFilterStartDate] = useState('');
+    const [filterEndDate, setFilterEndDate] = useState('');
     const [statusFilter, setStatusFilter] = useState('Semua Status');
     const [selectedScanIds, setSelectedScanIds] = useState<number[]>([]);
     const [selectedScan, setSelectedScan] = useState<ScanHistoryItem | null>(null);
@@ -46,29 +51,56 @@ const RepositoryScreen = () => {
 
     useEffect(() => {
         loadHistory();
+
+        const eventSource = new EventSource(
+            import.meta.env.MODE === 'development' ? 'http://localhost:3000/api/events' : '/api/events'
+        );
+        
+        eventSource.addEventListener('hub-sync', (e) => {
+            console.log('Received hub sync event:', e.data);
+            loadHistory();
+            toast.info('Data scan baru masuk dari Workstation');
+        });
+
+        return () => {
+            eventSource.close();
+        };
     }, []);
 
     useEffect(() => {
         let result = history;
-        if (searchTerm) {
-            result = result.filter(h =>
-                h.mawb.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (h.hawb && h.hawb.toLowerCase().includes(searchTerm.toLowerCase()))
-            );
+        if (filterMawb) {
+            result = result.filter((h: ScanHistoryItem) => h.mawb.toLowerCase().includes(filterMawb.toLowerCase()));
+        }
+        if (filterHawb) {
+            result = result.filter((h: ScanHistoryItem) => h.hawb && h.hawb.toLowerCase().includes(filterHawb.toLowerCase()));
+        }
+        if (filterScreener) {
+            result = result.filter((h: ScanHistoryItem) => h.userID && h.userID.toLowerCase().includes(filterScreener.toLowerCase()));
+        }
+        if (filterStartDate) {
+            const start = new Date(filterStartDate);
+            start.setHours(0, 0, 0, 0);
+            result = result.filter((h: ScanHistoryItem) => new Date(h.timestamp) >= start);
+        }
+        if (filterEndDate) {
+            const end = new Date(filterEndDate);
+            end.setHours(23, 59, 59, 999);
+            result = result.filter((h: ScanHistoryItem) => new Date(h.timestamp) <= end);
         }
 
         if (statusFilter !== 'Semua Status') {
-            result = result.filter(h => h.status === statusFilter);
+            result = result.filter((h: ScanHistoryItem) => h.status === statusFilter);
         }
 
         setFilteredList(result);
         setSelectedScanIds([]);
         setCurrentPage(1); // Reset selection on filter change
-    }, [searchTerm, statusFilter, history]);
+    }, [filterMawb, filterHawb, filterScreener, filterStartDate, filterEndDate, statusFilter, history]);
 
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.checked) {
-            setSelectedScanIds(paginatedList.map(h => h.scanId));
+            setSelectedScanIds(paginatedList.map((h: ScanHistoryItem) => h.scanId));
         } else {
             setSelectedScanIds([]);
         }
@@ -156,6 +188,35 @@ Data yang akan dikirim:
         }
     };
 
+    const handleExportExcel = () => {
+        if (filteredList.length === 0) {
+            toast.error('Tidak ada data untuk diekspor');
+            return;
+        }
+
+        const exportData = filteredList.map(item => ({
+            'Scan ID': item.scanId,
+            'Timestamp': new Date(item.timestamp).toLocaleString(),
+            'MAWB': item.mawb,
+            'HAWB': item.hawb || '-',
+            'ULD No': item.uldNo || '-',
+            'Qty (Pcs)': item.qty,
+            'Status': item.status,
+            'Screener': item.userID || '-',
+            'Submitted to Customs': item.submittedToCustoms ? 'Yes' : 'No',
+            'Submitted At': item.submittedAt ? new Date(item.submittedAt).toLocaleString() : '-'
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(exportData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Scan History');
+
+        // Generate filename with timestamp
+        const date = new Date().toISOString().split('T')[0];
+        XLSX.writeFile(workbook, `ScanHistory_Export_${date}.xlsx`);
+        toast.success('Data riwayat scan berhasil diekspor ke Excel');
+    };
+
     const getStatusBadge = (item: ScanHistoryItem) => {
         const status = item.status;
         const submitted = item.submittedToCustoms;
@@ -206,6 +267,13 @@ Data yang akan dikirim:
                         <span className="text-xs text-gray-400 block">Total Scans</span>
                         <span className="text-xl font-black text-blue-900">{stats.total}</span>
                     </div>
+                    <button
+                        onClick={handleExportExcel}
+                        className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-all shadow-sm ml-4"
+                    >
+                        <FileSpreadsheet size={18} />
+                        <span>Export Excel</span>
+                    </button>
                     {selectedScanIds.length > 0 && (
                         <button
                             onClick={handleBulkDelete}
@@ -237,26 +305,41 @@ Data yang akan dikirim:
                 </div>
             </div>
 
-            <div className="flex flex-col md:flex-row gap-4 mb-6">
-                <div className="flex-1 relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        placeholder="Search by MAWB or HAWB..."
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                    />
+            <div className="flex flex-col gap-4 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1 block">MAWB</label>
+                        <input value={filterMawb} onChange={(e) => setFilterMawb(e.target.value)} placeholder="Filter MAWB..." className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1 block">HAWB</label>
+                        <input value={filterHawb} onChange={(e) => setFilterHawb(e.target.value)} placeholder="Filter HAWB..." className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1 block">Screener</label>
+                        <input value={filterScreener} onChange={(e) => setFilterScreener(e.target.value)} placeholder="Filter Screener..." className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1 block">Start Date</label>
+                        <input type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1 block">End Date</label>
+                        <input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                    </div>
                 </div>
-                <div className="w-full md:w-56 relative">
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium"
-                    >
-                        <option>Semua Status</option>
-                        <option value="Finished XRay">Finished XRay</option>
-                        <option value="Pending XRay">Pending XRay</option>
-                    </select>
+                <div className="flex items-center space-x-4">
+                    <div className="w-full md:w-56 relative">
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium"
+                        >
+                            <option>Semua Status</option>
+                            <option value="Finished XRay">Finished XRay</option>
+                            <option value="Pending XRay">Pending XRay</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -278,8 +361,8 @@ Data yang akan dikirim:
                                 <th className="px-4 py-4 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest">MAWB</th>
                                 <th className="px-4 py-4 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest">HAWB</th>
                                 <th className="px-4 py-4 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest">Pcs (Tot/Act)</th>
-                                <th className="px-4 py-4 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest">Weight</th>
                                 <th className="px-4 py-4 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest">Status</th>
+                                <th className="px-4 py-4 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest">Screener</th>
                                 <th className="px-4 py-4 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest">Time</th>
                                 <th className="px-4 py-4 text-right text-[10px] font-bold text-gray-500 uppercase tracking-widest">Actions</th>
                             </tr>
@@ -310,8 +393,10 @@ Data yang akan dikirim:
                                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-bold">
                                             {item.qty} Pcs
                                         </td>
-                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600 font-mono">{item.totalWeight || 0} kg</td>
                                         <td className="px-4 py-4 whitespace-nowrap">{getStatusBadge(item)}</td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-xs text-gray-600 font-medium">
+                                            {item.userID || '-'}
+                                        </td>
                                         <td className="px-4 py-4 whitespace-nowrap text-xs text-gray-500 items-center mt-1">
                                             <Clock size={12} className="inline mr-1" />
                                             {new Date(item.timestamp).toLocaleString()}
@@ -422,6 +507,27 @@ Data yang akan dikirim:
                                     </div>
                                 </div>
                             </div>
+
+                            {/* AI Crop Images Section */}
+                            {selectedScan.cropImages && selectedScan.cropImages.length > 0 && (
+                                <div className="mt-8 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl border border-purple-200 p-6">
+                                    <h3 className="text-xs font-black text-purple-700 uppercase tracking-widest flex items-center mb-4">
+                                        <Layers size={14} className="mr-2" />
+                                        AI Autocrop — {selectedScan.cropImages.length} Koli Terdeteksi
+                                    </h3>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                                        {selectedScan.cropImages.map((url, i) => (
+                                            <div key={url} className="relative group cursor-pointer aspect-square bg-gray-900 rounded-xl overflow-hidden border-2 border-purple-300 hover:border-purple-500 transition-all shadow" onClick={() => setZoomImage(url)}>
+                                                <img src={url} alt={`Koli ${i + 1}`} className="w-full h-full object-contain" />
+                                                <div className="absolute inset-0 bg-purple-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                    <Eye size={18} className="text-white" />
+                                                </div>
+                                                <span className="absolute bottom-1 left-1 bg-purple-600/90 text-white text-[9px] font-black px-1.5 py-0.5 rounded">Koli #{i + 1}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="mt-8 pt-6 border-t border-gray-100 flex justify-between items-center text-gray-400 italic text-xs">
                                 <span>Scan processed at: {new Date(selectedScan.timestamp).toLocaleString()}</span>
